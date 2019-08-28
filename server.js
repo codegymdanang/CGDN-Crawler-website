@@ -2,72 +2,78 @@ const cheerio = require('cheerio');
 const request = require('request');
 const fs = require('fs');
 
+var appSupport = new Array();
 
-function Crawler()
+function crawlerPopularLinks()
 {
     //Gửi 1 request tới website
     request('https://apps.apple.com/kn/genre/ios-business/id6000?letter=A', function (err, res, body)
     {
         //  Sử dụng cheerio.load để lấy dữ liệu trả về
         var $ = cheerio.load(body);
+        //  get select content
+        var links = new Array();
 
-        //  Lấy chương mới nhất của truyện
-        var newestChap = $('#selectedcontent').text();
-        var links = newestChap.find($('a')) ;
-
+        $('#selectedcontent').find('a').each(function(i,elem){
+            links.push($(this).attr('href'));
+        });
         console.log(links);
-
-        var obj = {
-            'newestChap' : newestChap
-        }
-        var json = JSON.stringify(obj);
+        var json = JSON.stringify(links);
         //  Kiểm tra file newchap.json tồn tại không
-        if (!fs.existsSync('newchap.json')) {
+        if (!fs.existsSync('popularapp.json')) {
             //  Nếu chưa tồn tại tạo file  mới
-            fs.writeFile('newchap.json', json, '', (err)=>{
+            fs.writeFile('popularapp.json', json, '', (err)=>{
                 if (err) throw err;
-                console.log('Tạo file newchap.json thành công!');
+                console.log('created popularapp.json !');
             });
             return;
         }
-        //  Đọc file newchap.json nằm trong thư mục dự án
-        fs.readFile('newchap.json', function readFileCallback(err, data)
-        {
-            if (err)
-            {
-                console.log('Đọc file newchap.json thất bại!');
-                return;
-            }
-            else
-            {
-                // Lấy chương truyện mới nhất từ file json
-                obj = JSON.parse(data);
-                var dbChap = obj.newestChap;
-                //  So sánh 2 chương truyện nếu khác nhau -> đã có chương mới
-                if(newestChap !== dbChap)
-                {
-                    //  Lưu chương mới vào file newchap.json
-                    fs.writeFile('newchap.json', json, '', (err)=>{
-                        if (err) throw err;
-                        console.log('Đã có chương mới!');
-                        console.log('Cập nhật newchap.json thành công!');
-                    });
-                    //  Lấy đường dẫn chương truyện mới
-                    var detailUrl = $('.list-overview .item .item-value a').attr('href');
-                    //  Tạo yêu cầu mới -> lấy thông tin chương mới
-                    request(detailUrl, (err, res, body)=>{
-                        let cheerioDetail = cheerio.load(body);
-                        let contentDetail = cheerioDetail('.truyencv-read-content .content').text();
-                        // Gửi email thông báo
-                        sendEmail(newestChap,contentDetail);
 
-                    });
-                }
-                else{
-                    console.log('Chưa có chương mới!');
-                }
-            }
-        });
     })
 }
-Crawler();
+
+function saveAppSupportLinkToFile() {
+    console.log('@@@@@@',appSupport);
+}
+
+function crawlerAppSupportLink(appSupportlink) {
+    request(appSupportlink, function (err, res, body)
+    {
+        console.log("$$$$$$ Link name", appSupportlink);
+        //  Sử dụng cheerio.load để lấy dữ liệu trả về
+        var $ = cheerio.load(body);
+        //  get select content
+        var category = $('.link').filter(function() {
+            return $(this).text().indexOf('App Support') > -1;
+        })
+        console.log("#########", category.attr('href'));
+        appSupport.push(category.attr('href'))
+
+    })
+
+}
+
+function readPopularLinks() {
+    fs.readFile('popularapp.json', function readFileCallback(err, data)
+    {
+        if (err)
+        {
+            console.log('Đọc file popularapp.json thất bại!');
+            return;
+        }
+        else
+        {
+            // Lấy chương truyện mới nhất từ file json
+            var links = JSON.parse(data);
+
+            for (var index in links) {
+                crawlerAppSupportLink(links[index]);
+            }
+
+            saveAppSupportLinkToFile();
+
+        }
+    });
+}
+//crawlerPopularLinks();
+readPopularLinks();
