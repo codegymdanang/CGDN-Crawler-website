@@ -2,7 +2,7 @@ const cheerio = require('cheerio');
 const request = require('request');
 const fs = require('fs');
 
-var appSupport = new Array();
+
 
 function crawlerPopularLinks()
 {
@@ -17,7 +17,7 @@ function crawlerPopularLinks()
         $('#selectedcontent').find('a').each(function(i,elem){
             links.push($(this).attr('href'));
         });
-        console.log(links);
+
         var json = JSON.stringify(links);
         //  Kiểm tra file newchap.json tồn tại không
         if (!fs.existsSync('popularapp.json')) {
@@ -32,48 +32,72 @@ function crawlerPopularLinks()
     })
 }
 
-function saveAppSupportLinkToFile() {
-    console.log('@@@@@@',appSupport);
-}
+
 
 function crawlerAppSupportLink(appSupportlink) {
-    request(appSupportlink, function (err, res, body)
-    {
-        console.log("$$$$$$ Link name", appSupportlink);
-        //  Sử dụng cheerio.load để lấy dữ liệu trả về
-        var $ = cheerio.load(body);
-        //  get select content
-        var category = $('.link').filter(function() {
-            return $(this).text().indexOf('App Support') > -1;
-        })
-        console.log("#########", category.attr('href'));
-        appSupport.push(category.attr('href'))
+    let link = "";
+    return new Promise(resolve => {
+        request(appSupportlink, function (err, res, body) {
+            //  Sử dụng cheerio.load để lấy dữ liệu trả về
+            let $ = cheerio.load(body);
+            //  get select content
+            let category = $('.link').filter(function() {
+                return $(this).text().indexOf('App Support') > -1;
+            })
+            link = category.attr('href');
 
-    })
+            resolve(link);
+
+        })
+    });
+
 
 }
 
 function readPopularLinks() {
-    fs.readFile('popularapp.json', function readFileCallback(err, data)
-    {
-        if (err)
-        {
-            console.log('Đọc file popularapp.json thất bại!');
-            return;
-        }
-        else
-        {
-            // Lấy chương truyện mới nhất từ file json
-            var links = JSON.parse(data);
+    let appSupportLinks = new Array();
+    return new Promise((resolve, reject)=>{
+        fs.readFile('popularapp.json', async function readFileCallback(err, data) {
+            if (err) {
+                console.log('Fail to  popularapp.json !');
+                return;
+            } else {
+                // get all popular link from file
+                let popularLinks = JSON.parse(data);
+                for (var index in popularLinks) {
+                    var link = await crawlerAppSupportLink(popularLinks[index]);
+                    console.log("Link " , link);
+                    appSupportLinks.push(link);
 
-            for (var index in links) {
-                crawlerAppSupportLink(links[index]);
+                }
+                resolve(appSupportLinks);
+
             }
-
-            saveAppSupportLinkToFile();
-
-        }
+        });
     });
+
 }
+
+function saveAppSupportLinkToFile(appSupportLinks) {
+    var json = JSON.stringify(appSupportLinks);
+
+    if (!fs.existsSync('appsupport.json')) {
+        //  Nếu chưa tồn tại tạo file  mới
+        fs.writeFile('appsupport.json', json, '', (err)=>{
+            if (err) throw err;
+            console.log('created appsupport.json !');
+        });
+        return;
+    }
+}
+
 //crawlerPopularLinks();
-readPopularLinks();
+//readPopularLinks();
+//saveAppSupportLinkToFile();
+
+async function crawlData() {
+    const appSupport = await readPopularLinks();
+    saveAppSupportLinkToFile(appSupport);
+}
+
+crawlData();
